@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 from flask import Flask, request, make_response, jsonify
 from flask_migrate import Migrate
@@ -25,14 +24,29 @@ def index():
 
 class Restaurants(Resource):
     def get(self):
-        restaurants = [restaurant.to_dict() for restaurant in Restaurant.query.all()]
+        restaurants = [{"id": r.id, "name": r.name, "address": r.address} for r in Restaurant.query.all()]
         return make_response(jsonify(restaurants), 200)
 
 class RestaurantById(Resource):
     def get(self, id):
         restaurant = Restaurant.query.filter_by(id=id).first()
         if restaurant:
-            return make_response(jsonify(restaurant.to_dict()), 200)
+            return make_response(jsonify({
+                "id": restaurant.id,
+                "name": restaurant.name,
+                "address": restaurant.address,
+                "restaurant_pizzas": [{
+                    "id": rp.id,
+                    "price": rp.price,
+                    "pizza_id": rp.pizza_id,
+                    "restaurant_id": rp.restaurant_id,
+                    "pizza": {
+                        "id": rp.pizza.id,
+                        "name": rp.pizza.name,
+                        "ingredients": rp.pizza.ingredients
+                    }
+                } for rp in restaurant.restaurant_pizzas]
+            }), 200)
         else:
             return make_response(jsonify({"error": "Restaurant not found"}), 404)
 
@@ -47,7 +61,7 @@ class RestaurantById(Resource):
 
 class Pizzas(Resource):
     def get(self):
-        pizzas = [pizza.to_dict() for pizza in Pizza.query.all()]
+        pizzas = [{"id": p.id, "name": p.name, "ingredients": p.ingredients} for p in Pizza.query.all()]
         return make_response(jsonify(pizzas), 200)
 
 class RestaurantPizzas(Resource):
@@ -63,9 +77,26 @@ class RestaurantPizzas(Resource):
             db.session.add(new_restaurant_pizza)
             db.session.commit()
             
-            return make_response(jsonify(new_restaurant_pizza.pizza.to_dict()), 201)
+            pizza = Pizza.query.get(new_restaurant_pizza.pizza_id)
+            restaurant = Restaurant.query.get(new_restaurant_pizza.restaurant_id)
+            return make_response(jsonify({
+                "id": new_restaurant_pizza.id,
+                "price": new_restaurant_pizza.price,
+                "pizza_id": new_restaurant_pizza.pizza_id,
+                "restaurant_id": new_restaurant_pizza.restaurant_id,
+                "pizza": {
+                    "id": pizza.id,
+                    "name": pizza.name,
+                    "ingredients": pizza.ingredients
+                },
+                "restaurant": {
+                    "id": restaurant.id,
+                    "name": restaurant.name,
+                    "address": restaurant.address
+                }
+            }), 201)
         except ValueError as e:
-            return make_response(jsonify({"errors": [str(e)]}), 400)
+            return make_response(jsonify({"errors": ["validation errors"]}), 400)
 
 api.add_resource(Restaurants, '/restaurants')
 api.add_resource(RestaurantById, '/restaurants/<int:id>')
